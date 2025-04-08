@@ -81,8 +81,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'inventory360',  
-        'USER': 'root',         
-        'PASSWORD': 'Axel8124',  
+        'USER': 'inventory360_user',         
+        'PASSWORD': 'user1234',  
         'HOST': 'localhost',          
         'PORT': '3306',               
         'OPTIONS': {

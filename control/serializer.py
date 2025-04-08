@@ -2,9 +2,9 @@ from rest_framework import serializers
 from .models import *
 
 
-class BussinesSerializer(serializers.ModelSerializer):
+class BusinessSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Bussines
+        model = Business
         fields = '__all__'
 
 

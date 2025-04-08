@@ -5,9 +5,9 @@ from .models import *
 
 
 
-class BussinesView(viewsets.ModelViewSet):
-    serializer_class = BussinesSerializer
-    queryset = Bussines.objects.all()
+class BusinessView(viewsets.ModelViewSet):
+    serializer_class = BusinessSerializer
+    queryset = Business.objects.all()
 
 class CategoryView(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
