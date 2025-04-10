@@ -3,9 +3,9 @@ from .models import *
 
 # Register your models here.
 
-admin.site.register(Empresa)
-admin.site.register(Usuario)
-admin.site.register(Categoria)
-admin.site.register(Producto)
-admin.site.register(Proveedor)
-admin.site.register(Movimiento)
+admin.site.register(Business)
+admin.site.register(User)
+admin.site.register(Category)
+admin.site.register(Product)
+admin.site.register(Supplier)
+admin.site.register(Movement)
