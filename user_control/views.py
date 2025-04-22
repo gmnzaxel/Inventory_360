@@ -14,8 +14,8 @@ class LoginView(APIView):
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
-
         user = authenticate(request, email=email, password=password)
+        
         if user:
             return Response({
                 "message": "Login exitoso",
