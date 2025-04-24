@@ -2,7 +2,6 @@
 
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from user_control.views import IsCompanyAdmin
 
 from .models import Business, Category, Product, Supplier, Movement
 from .serializer import (
@@ -16,7 +15,7 @@ from .serializer import (
 class BusinessView(viewsets.ModelViewSet):
     queryset = Business.objects.all()
     serializer_class = BusinessSerializer
-    permission_classes = [IsAuthenticated, IsCompanyAdmin]
+    permission_classes = [IsAuthenticated]
 
 class CategoryView(viewsets.ModelViewSet):
     queryset = Category.objects.all()
