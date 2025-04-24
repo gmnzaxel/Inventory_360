@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import User
+from control.models import Business
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
@@ -20,9 +21,14 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password2')
-        password = validated_data.pop('password')
+        pwd = validated_data.pop('password')
+
+
+        if validated_data.get('role') == 'admin' and not validated_data.get('business'):
+            bus = Business.objects.create(name=f"{validated_data['name']}-Business")
+            validated_data['business'] = bus
+
         user = User(**validated_data)
-        user.set_password(password)
+        user.set_password(pwd)
         user.save()
         return user
-

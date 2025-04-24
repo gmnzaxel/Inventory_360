@@ -1,26 +1,40 @@
-from django.shortcuts import render
+# control/views.py
+
 from rest_framework import viewsets
-from .serializer import *
-from .models import *
+from rest_framework.permissions import IsAuthenticated
+from user_control.views import IsCompanyAdmin
 
-
+from .models import Business, Category, Product, Supplier, Movement
+from .serializer import (
+    BusinessSerializer,
+    CategorySerializer,
+    ProductSerializer,
+    SupplierSerializer,
+    MovementSerializer
+)
 
 class BusinessView(viewsets.ModelViewSet):
-    serializer_class = BusinessSerializer
     queryset = Business.objects.all()
+    serializer_class = BusinessSerializer
+    permission_classes = [IsAuthenticated, IsCompanyAdmin]
 
 class CategoryView(viewsets.ModelViewSet):
-    serializer_class = CategorySerializer
     queryset = Category.objects.all()
-    
+    serializer_class = CategorySerializer
+    permission_classes = [IsAuthenticated]
+
 class ProductView(viewsets.ModelViewSet):
-    serializer_class = ProductSerializer
     queryset = Product.objects.all()
-    
+    serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated]
+
 class SupplierView(viewsets.ModelViewSet):
-    serializer_class = SupplierSerializer
     queryset = Supplier.objects.all()
-    
+    serializer_class = SupplierSerializer
+    permission_classes = [IsAuthenticated]
+
 class MovementView(viewsets.ModelViewSet):
-    serializer_class = MovementSerializer
     queryset = Movement.objects.all()
+    serializer_class = MovementSerializer
+    permission_classes = [IsAuthenticated]
+
