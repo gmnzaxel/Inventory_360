@@ -4,17 +4,16 @@ from rest_framework.response import Response
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from django.contrib.auth import authenticate, login, logout
 from .models import User
-from .serializer import UserSerializer
-from rest_framework import generics, permissions
+from .serializer import UserSerializer, UserCreateByAdminSerializer
+from rest_framework import generics, permissions, serializers
+from .permissions import IsAdminUserCustom
 
 class UserView(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = User.objects.all()
 
-
-
-class LoginView(APIView):
+class LoginView(APIView):   
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
@@ -36,3 +35,13 @@ class LogoutView(APIView):
     def post(self, request):
         logout(request)
         return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
+
+class CreateUserByAdminView(generics.CreateAPIView):
+    serializer_class = UserCreateByAdminSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminUserCustom]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role != 'admin':
+            raise serializers.ValidationError({"detail": "No tienes permiso para crear usuarios."})
+        serializer.save(company=user.company)
