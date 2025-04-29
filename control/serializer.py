@@ -26,3 +26,4 @@ class MovementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movement
         fields = '__all__'
+        read_only_fields = ['date', 'user']

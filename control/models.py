@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 class Business(models.Model):
     name = models.CharField(max_length=255)
@@ -40,13 +41,16 @@ class Movement(models.Model):
         ('purchase', 'Purchase'),
         ('sale', 'Sale'),
         ('adjustment', 'Adjustment'),
-        ('output', 'Output')
+        ('output', 'Output'),
+        ('input', 'Input'),  # entrada manual o externa
     ]
+
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPES)
-    product_name = models.CharField(max_length=255)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE)  # relación real
     quantity = models.IntegerField()
     date = models.DateTimeField(auto_now_add=True)
     document_number = models.CharField(max_length=50, null=True, blank=True)
-    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+
     def __str__(self):
-        return f"{self.movement_type} - {self.product_name} ({self.quantity})"
+        return f"{self.movement_type} - {self.product.name} ({self.quantity})"
