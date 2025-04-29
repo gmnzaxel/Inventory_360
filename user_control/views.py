@@ -15,9 +15,23 @@ class UserView(viewsets.ModelViewSet):
 
 class LoginView(APIView):   
     def post(self, request):
-        email = request.data.get("email")
+        identifier = request.data.get("identifier")
         password = request.data.get("password")
-        user = authenticate(request, email=email, password=password)
+
+        if not identifier or not password:
+            return Response({"error": "Se requiere 'identifier' y 'password'"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        try:
+            user_obj = User.objects.get(username=identifier)
+        except User.DoesNotExist:
+            try:
+                user_obj = User.objects.get(email=identifier)
+            except User.DoesNotExist:
+                return Response({"error": "Usuario no encontrado"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = authenticate(request, username=user_obj.username, password=password)
+
         if user:
             login(request, user)
             return Response({
@@ -26,6 +40,7 @@ class LoginView(APIView):
                 "email": user.email,
                 "role": user.role
             }, status=status.HTTP_200_OK)
+
         return Response({"error": "Credenciales incorrectas"}, status=status.HTTP_400_BAD_REQUEST)
 
 
