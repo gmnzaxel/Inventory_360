@@ -1,8 +1,7 @@
 # control/views.py
 
-from rest_framework import viewsets
+from rest_framework import viewsets, permissions
 from rest_framework.permissions import IsAuthenticated
-
 from .models import Business, Category, Product, Supplier, Movement
 from .serializer import (
     BusinessSerializer,
@@ -33,7 +32,10 @@ class SupplierView(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 class MovementView(viewsets.ModelViewSet):
-    queryset = Movement.objects.all()
+    queryset = Movement.objects.all().order_by('-date')
     serializer_class = MovementSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
