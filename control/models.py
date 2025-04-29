@@ -12,29 +12,26 @@ class Business(models.Model):
         return self.name
 
 
-class Category(models.Model):
+class Branch(models.Model):
     name = models.CharField(max_length=255)
-    description = models.TextField()
+    address = models.TextField()
+    phone = models.CharField(max_length=20)
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='branches')
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.business.name}"
+
 
 class Product(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    stock = models.IntegerField()
+    category = models.CharField(max_length=255, blank=True)  # categoría como texto libre
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='products')  # sucursal a la que pertenece el producto
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.branch.name})"
 
-class Supplier(models.Model):
-    name = models.CharField(max_length=255)
-    address = models.TextField()
-    phone = models.CharField(max_length=20)
-
-    def __str__(self):
-        return self.name
 
 class Movement(models.Model):
     MOVEMENT_TYPES = [
@@ -42,15 +39,27 @@ class Movement(models.Model):
         ('sale', 'Sale'),
         ('adjustment', 'Adjustment'),
         ('output', 'Output'),
-        ('input', 'Input'),  # entrada manual o externa
+        ('input', 'Input'),
     ]
 
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPES)
-    product = models.ForeignKey('Product', on_delete=models.CASCADE)  # relación real
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
     quantity = models.IntegerField()
     date = models.DateTimeField(auto_now_add=True)
     document_number = models.CharField(max_length=50, null=True, blank=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
-        return f"{self.movement_type} - {self.product.name} ({self.quantity})"
+        return f"{self.movement_type} - {self.product.name} ({self.quantity}) at {self.branch.name}"
+
+class Stock(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stocks')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='stocks')
+    quantity = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ('product', 'branch')
+
+    def __str__(self):
+        return f"{self.product.name} in {self.branch.name}: {self.quantity}"

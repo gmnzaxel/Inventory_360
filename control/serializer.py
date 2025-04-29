@@ -7,23 +7,42 @@ class BusinessSerializer(serializers.ModelSerializer):
         model = Business
         fields = '__all__'
 
-class CategorySerializer(serializers.ModelSerializer):
+
+class BranchSerializer(serializers.ModelSerializer):
+    business = BusinessSerializer(read_only=True)
+    business_id = serializers.PrimaryKeyRelatedField(queryset=Business.objects.all(), source='business', write_only=True)
+
     class Meta:
-        model = Category
-        fields = '__all__'
+        model = Branch
+        fields = ['id', 'name', 'address', 'phone', 'business', 'business_id']
+
 
 class ProductSerializer(serializers.ModelSerializer):
+    branch = BranchSerializer(read_only=True)
+    branch_id = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), source='branch', write_only=True)
+
     class Meta:
         model = Product
-        fields = '__all__'
-        
-class SupplierSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Supplier
-        fields = '__all__'
-        
+        fields = ['id', 'name', 'description', 'price', 'stock', 'category', 'branch', 'branch_id']
+
+
 class MovementSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), source='product', write_only=True)
+    branch = BranchSerializer(read_only=True)
+    branch_id = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), source='branch', write_only=True)
+
     class Meta:
         model = Movement
-        fields = '__all__'
-        read_only_fields = ['date', 'user']
+        fields = ['id', 'movement_type', 'quantity', 'date', 'document_number', 'product', 'product_id', 'branch', 'branch_id', 'user']
+
+
+class StockSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), source='product', write_only=True)
+    branch = BranchSerializer(read_only=True)
+    branch_id = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), source='branch', write_only=True)
+
+    class Meta:
+        model = Stock
+        fields = ['id', 'product', 'product_id', 'branch', 'branch_id', 'quantity']
