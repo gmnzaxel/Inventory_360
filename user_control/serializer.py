@@ -48,5 +48,8 @@ class UserCreateByAdminSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password2')
-        company = self.context['request'].user.company
-        return User.objects.create_user(company=company, **validated_data)
+        validated_data['business'] = self.context['request'].user.business
+        user = User(**validated_data)
+        user.set_password(validated_data.pop('password'))
+        user.save()
+        return user

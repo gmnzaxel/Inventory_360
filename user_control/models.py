@@ -13,3 +13,9 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.name} ({self.email})"
+
+    def can_manage_business(self):
+        return self.role == 'admin'
+
+    def can_manage_products(self):
+        return self.role == 'user'
