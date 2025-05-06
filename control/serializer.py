@@ -10,11 +10,9 @@ class BusinessSerializer(serializers.ModelSerializer):
 
 class BranchSerializer(serializers.ModelSerializer):
     business = BusinessSerializer(read_only=True)
-    business_id = serializers.PrimaryKeyRelatedField(queryset=Business.objects.all(), source='business', write_only=True)
-
     class Meta:
         model = Branch
-        fields = ['id', 'name', 'address', 'phone', 'business', 'business_id']
+        fields = ['id', 'name', 'address', 'phone', 'business']
 
 
 class ProductSerializer(serializers.ModelSerializer):

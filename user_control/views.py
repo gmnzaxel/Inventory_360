@@ -38,7 +38,7 @@ class LoginView(APIView):
 
         if user:
             login(request, user)
-            return Response({
+            return Response({   
                 "message": "Login exitoso",
                 "name": user.name,
                 "email": user.email,
@@ -63,4 +63,4 @@ class CreateUserByAdminView(generics.CreateAPIView):
         user = self.request.user
         if user.role != 'admin':
             raise serializers.ValidationError({"detail": "No tienes permiso para crear usuarios."})
-        serializer.save(company=user.company)
+        serializer.save(business=user.business)

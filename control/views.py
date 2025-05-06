@@ -7,17 +7,6 @@ from .serializer import *
 class BusinessView(viewsets.ModelViewSet):
     queryset = Business.objects.all()
     serializer_class = BusinessSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        if self.request.user.role == 'admin':
-            return Business.objects.filter(id=self.request.user.business_id)
-        return Business.objects.none()  # solo los admin pueden ver la empresa
-
-    def perform_create(self, serializer):
-        if self.request.user.role != 'admin':
-            raise serializers.ValidationError("Solo los administradores pueden crear empresas.")
-        serializer.save()
 
 class BranchView(viewsets.ModelViewSet):
     serializer_class = BranchSerializer
@@ -29,7 +18,8 @@ class BranchView(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.role != 'admin':
             raise serializers.ValidationError("Solo los administradores pueden crear sucursales.")
-        serializer.save() 
+        serializer.save(business=self.request.user.business)
+
 
 class ProductView(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
