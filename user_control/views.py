@@ -10,8 +10,12 @@ from .permissions import IsAdminUserCustom
 
 class UserView(viewsets.ModelViewSet):
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    queryset = User.objects.all()
+    #permission_classes = [permissions.IsAuthenticated]
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return User.objects.none()
+        return User.objects.filter(business=user.business)
 
 class LoginView(APIView):   
     def post(self, request):
