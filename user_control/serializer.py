@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import User
 from control.models import Business
 from control.serializer import BusinessSerializer
+import uuid
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
@@ -36,10 +37,11 @@ class UserSerializer(serializers.ModelSerializer):
 class UserCreateByAdminSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     password2 = serializers.CharField(write_only=True)
+    username = serializers.CharField(required=False)  # Lo hacemos opcional
 
     class Meta:
         model = User
-        fields = ['email', 'name', 'role', 'password', 'password2']
+        fields = ['email', 'name', 'role', 'username', 'password', 'password2']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
@@ -48,8 +50,16 @@ class UserCreateByAdminSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password2')
+        password = validated_data.pop('password')
+
+        # Si no se provee username, generar uno único
+        if not validated_data.get('username'):
+            base_username = validated_data['email'].split('@')[0]
+            validated_data['username'] = f"{base_username}_{uuid.uuid4().hex[:6]}"
+
         validated_data['business'] = self.context['request'].user.business
+
         user = User(**validated_data)
-        user.set_password(validated_data.pop('password'))
+        user.set_password(password)
         user.save()
         return user
