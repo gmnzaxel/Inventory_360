@@ -64,3 +64,4 @@ class CreateUserByAdminView(generics.CreateAPIView):
         if user.role != 'admin':
             raise serializers.ValidationError({"detail": "No tienes permiso para crear usuarios."})
         serializer.save(business=user.business)
+

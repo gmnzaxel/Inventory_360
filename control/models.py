@@ -6,11 +6,10 @@ class Business(models.Model):
     address = models.TextField()
     phone = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
-    notes = models.TextField(default="")
+    notes = models.TextField(default="", blank=True)
 
     def __str__(self):
         return self.name
-
 
 class Branch(models.Model):
     name = models.CharField(max_length=255)
@@ -21,17 +20,15 @@ class Branch(models.Model):
     def __str__(self):
         return f"{self.name} - {self.business.name}"
 
-
 class Product(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    category = models.CharField(max_length=255, blank=True)  # categoría como texto libre
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='products')  # sucursal a la que pertenece el producto
+    category = models.CharField(max_length=255, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='products')
 
     def __str__(self):
         return f"{self.name} ({self.branch.name})"
-
 
 class Movement(models.Model):
     MOVEMENT_TYPES = [
@@ -41,7 +38,6 @@ class Movement(models.Model):
         ('output', 'Output'),
         ('input', 'Input'),
     ]
-
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPES)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE)

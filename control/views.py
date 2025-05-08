@@ -1,12 +1,14 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, serializers
 from rest_framework.permissions import IsAuthenticated
 from .models import Business, Branch, Product, Movement, Stock
 from .serializer import *
 
-
-class BusinessView(viewsets.ModelViewSet):
-    queryset = Business.objects.all()
+class BusinessView(viewsets.ReadOnlyModelViewSet): 
     serializer_class = BusinessSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Business.objects.filter(id=self.request.user.business_id)
 
 class BranchView(viewsets.ModelViewSet):
     serializer_class = BranchSerializer
@@ -20,14 +22,11 @@ class BranchView(viewsets.ModelViewSet):
             raise serializers.ValidationError("Solo los administradores pueden crear sucursales.")
         serializer.save(business=self.request.user.business)
 
-
 class ProductView(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.role != 'user':
-            return Product.objects.none()
         return Product.objects.filter(branch__business=self.request.user.business)
 
 class MovementView(viewsets.ModelViewSet):
@@ -35,8 +34,6 @@ class MovementView(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.role != 'user':
-            return Movement.objects.none()
         return Movement.objects.filter(branch__business=self.request.user.business)
 
     def perform_create(self, serializer):
@@ -47,6 +44,4 @@ class StockView(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.role != 'user':
-            return Stock.objects.none()
         return Stock.objects.filter(branch__business=self.request.user.business)
