@@ -1,14 +1,16 @@
 from django.urls import path, include
-from rest_framework import routers
-from . import views
+from rest_framework.routers import DefaultRouter
+from .views import BusinessView, BranchView, ProductView, MovementView, StockView, DocumentView, CategoryView
 
-router = routers.DefaultRouter()
-router.register(r'business', views.BusinessView, basename='business')
-router.register(r'branch', views.BranchView, basename='branch')
-router.register(r'products', views.ProductView, basename='products')
-router.register(r'movements', views.MovementView, basename='movements')
-router.register(r'stocks', views.StockView, basename='stocks')
+router = DefaultRouter()
+router.register(r'businesses', BusinessView, basename='business')
+router.register(r'branches', BranchView, basename='branch')
+router.register(r'products', ProductView, basename='product')
+router.register(r'movements', MovementView, basename='movement')
+router.register(r'stocks', StockView, basename='stock')
+router.register(r'documents', DocumentView, basename='document')
+router.register(r'categories', CategoryView, basename='category')
 
 urlpatterns = [
-    path('control/model/', include(router.urls)),
+    path('', include(router.urls)),
 ]
