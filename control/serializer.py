@@ -77,9 +77,10 @@ class MovementSerializer(serializers.ModelSerializer):
         'min_value': 'La cantidad no puede ser negativa.',
         'invalid': 'La cantidad debe ser un número entero.'
     })
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     class Meta:
         model = Movement
-        fields = ['id', 'movement_type', 'quantity', 'date', 'product', 'product_id', 'branch', 'branch_id', 'branch_from', 'branch_from_id', 'user', 'document', 'document_id']
+        fields = ['id', 'movement_type', 'quantity', 'date', 'product', 'product_id', 'branch', 'branch_id', 'branch_from', 'branch_from_id', 'user', 'document', 'document_id', 'unit_price']
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
@@ -97,6 +98,7 @@ class MovementSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         movement_type = data['movement_type']
         document = data.get('document')
+        unit_price = data.get('unit_price')
         # Validar correspondencia entre document_type y movement_type
         if document:
             valid_types = {
@@ -107,6 +109,11 @@ class MovementSerializer(serializers.ModelSerializer):
             }
             if document.document_type != valid_types.get(movement_type):
                 raise serializers.ValidationError(f"El documento debe ser de tipo '{valid_types[movement_type]}' para movimientos de tipo '{movement_type}'.")
+        # Validar unit_price
+        if movement_type in ['purchase', 'sale'] and not unit_price:
+            raise serializers.ValidationError("El precio unitario es requerido para compras y ventas.")
+        if movement_type in ['adjustment', 'transfer'] and unit_price:
+            raise serializers.ValidationError("El precio unitario no debe especificarse para ajustes o transferencias.")
         # Validar que el producto y las sucursales pertenezcan a la empresa del usuario
         if product.business != user.business or branch.business != user.business:
             raise serializers.ValidationError("El producto o la sucursal no pertenecen a tu empresa.")

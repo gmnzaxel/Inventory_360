@@ -61,6 +61,7 @@ class Movement(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='movements_to')
     branch_from = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements_from')
     quantity = models.IntegerField()
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     date = models.DateTimeField(auto_now_add=True)
     document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
