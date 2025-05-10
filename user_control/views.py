@@ -39,24 +39,32 @@ class LoginView(APIView):
             return Response({"error": "Se requiere 'identifier' y 'password'"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user_obj = User.objects.get(username=identifier)
+            user_obj = User.objects.get(email=identifier)
+            user = authenticate(request, username=user_obj.email, password=password)
+            if user:
+                login(request, user)
+                return Response({
+                    "message": "Login exitoso",
+                    "name": user.name,
+                    "email": user.email,
+                    "role": user.role
+                }, status=status.HTTP_200_OK)
+            return Response({"error": "Credenciales incorrectas"}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             try:
-                user_obj = User.objects.get(email=identifier)
+                user_obj = User.objects.get(username=identifier)
+                user = authenticate(request, username=user_obj.email, password=password)
+                if user:
+                    login(request, user)
+                    return Response({
+                        "message": "Login exitoso",
+                        "name": user.name,
+                        "email": user.email,
+                        "role": user.role
+                    }, status=status.HTTP_200_OK)
+                return Response({"error": "Credenciales incorrectas"}, status=status.HTTP_400_BAD_REQUEST)
             except User.DoesNotExist:
                 return Response({"error": "Usuario no encontrado"}, status=status.HTTP_400_BAD_REQUEST)
-
-        user = authenticate(request, username=user_obj.username, password=password)
-        if user:
-            login(request, user)
-            return Response({
-                "message": "Login exitoso",
-                "name": user.name,
-                "email": user.email,
-                "role": user.role
-            }, status=status.HTTP_200_OK)
-
-        return Response({"error": "Credenciales incorrectas"}, status=status.HTTP_400_BAD_REQUEST)
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]

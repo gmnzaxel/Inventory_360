@@ -26,16 +26,42 @@ Inventory360 es una solución integral diseñada para empresas que buscan un con
 ## 👥 Tipos de Usuario
 
 ### 1. Administrador de Empresa
-- Registra la empresa en el sistema.
-- Gestiona sucursales y usuarios.
-- Visualiza el inventario completo de la empresa.
-- Administra productos y movimientos de todas las sucursales.
+- Registra y gestiona la empresa en el sistema.
+- Crea y gestiona sucursales y usuarios.
+- Acceso completo al inventario de toda la empresa
+- Administra productos, categorías y proveedores
+- Visualiza reportes globales
 
 ### 2. Empleado de Sucursal
 - Administra el stock únicamente de su sucursal.
 - Registra ingresos y egresos.
 - Visualiza reportes limitados a su ubicación.
+- Acceso restringido a funciones administrativas
 
+---
+
+## 🏗️ Arquitectura del Sistema
+Inventory360 está construido sobre Django con una base de datos MySQL, proporcionando una base robusta para:
+
+- Gestión de inventario
+- Administración de usuarios
+- Operaciones empresariales
+El sistema se estructura en dos aplicaciones Django principales:
+
+- user_control: Gestiona autenticación, perfiles de usuario y permisos
+- control: Maneja entidades empresariales, productos y movimientos de inventario
+
+---
+
+## 📊 Modelo de Datos
+El sistema utiliza los siguientes modelos principales:
+
+- User: Usuario del sistema con roles y asociación a empresa
+- Business: Entidad empresarial con sucursales
+- Category: Categorías de productos
+- Product: Productos con stock y precios
+- Supplier: Proveedores de productos
+- Movement: Registro de todos los movimientos de inventario
 ---
 
 ## ✅ Requisitos Funcionales
@@ -102,6 +128,44 @@ python manage.py runserver
 
 ---
 
+## 🔌 API REST
+Inventory360 expone su funcionalidad a través de una API RESTful construida con Django REST Framework. Los principales endpoints incluyen:
+
+- /api/user/: Gestión de usuarios
+- /api/user/login/: Autenticación de usuarios
+- /api/user/logout/: Cierre de sesión
+- /api/user/admin/create-user/: Creación de usuarios por administradores
+- /api/control/model/bussines/: Gestión de empresas
+- /api/control/model/products/: Gestión de productos
+- /api/control/model/categories/: Gestión de categorías
+- /api/control/model/supplier/: Gestión de proveedores
+- /api/control/model/movements/: Gestión de movimientos de inventario
+
+
+---
+
+
+## 👨‍💻 Desarrollo
+
+### Estructura del Proyecto
+
+Inventory_360/  
+├── Inventory360/          # Configuración principal del proyecto  
+├── control/               # App para gestión de inventario  
+│   ├── models.py          # Modelos de datos para inventario  
+│   ├── serializer.py      # Serializadores para la API  
+│   ├── views.py           # Vistas y lógica de negocio  
+│   └── urls.py            # Rutas de la API  
+├── user_control/          # App para gestión de usuarios  
+│   ├── models.py          # Modelo de usuario personalizado  
+│   ├── serializer.py      # Serializadores para usuarios  
+│   ├── views.py           # Vistas de autenticación y gestión  
+│   └── urls.py            # Rutas de autenticación  
+└── manage.py              # Script de gestión de Django  
+
+
+---
+
 
 ## 📈 Panel de Administración
 
@@ -119,6 +183,20 @@ http://127.0.0.1:8000/admin
 📢 ¡Pronto con API pública y soporte para React o Vue!
 
 ---
+
+
+## 🤝 Contribuciones
+Las contribuciones son bienvenidas. Por favor, sigue estos pasos:
+
+- Haz fork del repositorio
+- Crea una rama para tu funcionalidad (git checkout -b feature/amazing-feature)
+- Haz commit de tus cambios (git commit -m 'Add some amazing feature')
+- Push a la rama (git push origin feature/amazing-feature)
+- Abre un Pull Request
+
+
+---
+
 
 ## 📄 Licencia
 
