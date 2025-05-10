@@ -23,13 +23,11 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'description', 'business']
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             self.fields['business'].queryset = Business.objects.filter(id=request.user.business_id)
-
     def create(self, validated_data):
         validated_data['business'] = self.context['request'].user.business
         return super().create(validated_data)
@@ -39,17 +37,11 @@ class ProductSerializer(serializers.ModelSerializer):
     business_id = serializers.PrimaryKeyRelatedField(queryset=Business.objects.all(), source='business', write_only=True)
     category = CategorySerializer(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), source='category', write_only=True, required=False, allow_null=True)
-
-    # Validar que 'name' solo contenga letras, espacios, guiones, apóstrofes, tildes y ñ
     name = serializers.CharField(validators=[text_only_validator])
-    
-    # Validar que 'description' solo contenga letras, espacios, guiones, apóstrofes, tildes y ñ
     description = serializers.CharField(validators=[text_only_validator])
-
     class Meta:
         model = Product
         fields = ['id', 'name', 'description', 'price', 'category', 'category_id', 'business', 'business_id']
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
@@ -61,13 +53,11 @@ class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
         fields = ['id', 'document_type', 'document_number', 'date', 'business', 'created_by']
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             self.fields['business'].queryset = Business.objects.filter(id=request.user.business_id)
-
     def create(self, validated_data):
         validated_data['created_by'] = self.context['request'].user
         validated_data['business'] = self.context['request'].user.business
@@ -83,17 +73,13 @@ class MovementSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.email')
     document = DocumentSerializer(read_only=True)
     document_id = serializers.PrimaryKeyRelatedField(queryset=Document.objects.all(), source='document', write_only=True, required=False, allow_null=True)
-
-    # Validar que 'quantity' sea un entero no negativo
     quantity = serializers.IntegerField(min_value=0, error_messages={
         'min_value': 'La cantidad no puede ser negativa.',
         'invalid': 'La cantidad debe ser un número entero.'
     })
-
     class Meta:
         model = Movement
         fields = ['id', 'movement_type', 'quantity', 'date', 'product', 'product_id', 'branch', 'branch_id', 'branch_from', 'branch_from_id', 'user', 'document', 'document_id']
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
@@ -103,7 +89,6 @@ class MovementSerializer(serializers.ModelSerializer):
             self.fields['branch_id'].queryset = Branch.objects.filter(business=user.business)
             self.fields['branch_from_id'].queryset = Branch.objects.filter(business=user.business)
             self.fields['document_id'].queryset = Document.objects.filter(business=user.business)
-
     def validate(self, data):
         product = data['product']
         branch = data['branch']
@@ -112,13 +97,21 @@ class MovementSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         movement_type = data['movement_type']
         document = data.get('document')
-
+        # Validar correspondencia entre document_type y movement_type
+        if document:
+            valid_types = {
+                'sale': 'invoice',
+                'purchase': 'purchase_order',
+                'adjustment': 'adjustment_note',
+                'transfer': 'transfer_note'
+            }
+            if document.document_type != valid_types.get(movement_type):
+                raise serializers.ValidationError(f"El documento debe ser de tipo '{valid_types[movement_type]}' para movimientos de tipo '{movement_type}'.")
         # Validar que el producto y las sucursales pertenezcan a la empresa del usuario
         if product.business != user.business or branch.business != user.business:
             raise serializers.ValidationError("El producto o la sucursal no pertenecen a tu empresa.")
         if branch_from and branch_from.business != user.business:
             raise serializers.ValidationError("La sucursal de origen no pertenece a tu empresa.")
-
         # Validar permisos granulares
         if movement_type == 'purchase' and not user.can_purchase:
             raise serializers.ValidationError("No tienes permiso para registrar compras.")
@@ -128,11 +121,9 @@ class MovementSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("No tienes permiso para registrar ajustes.")
         if movement_type == 'transfer' and not user.can_transfer:
             raise serializers.ValidationError("No tienes permiso para registrar transferencias.")
-
         # Validar el documento si se proporciona
         if document and document.business != user.business:
             raise serializers.ValidationError("El documento no pertenece a tu empresa.")
-
         # Validar stock suficiente para movimientos de salida
         if movement_type == 'sale' or (movement_type == 'adjustment' and quantity < 0):
             try:
@@ -141,7 +132,6 @@ class MovementSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(f"Stock insuficiente. Disponible: {stock.quantity}")
             except Stock.DoesNotExist:
                 raise serializers.ValidationError("No hay stock registrado para este producto en esta sucursal.")
-
         # Validar transferencias
         if movement_type == 'transfer':
             if not branch_from or branch == branch_from:
@@ -152,9 +142,7 @@ class MovementSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(f"Stock insuficiente en la sucursal de origen. Disponible: {stock_from.quantity}")
             except Stock.DoesNotExist:
                 raise serializers.ValidationError("No hay stock registrado en la sucursal de origen.")
-
         return data
-
     def create(self, validated_data):
         movement = super().create(validated_data)
         product = movement.product
@@ -162,7 +150,6 @@ class MovementSerializer(serializers.ModelSerializer):
         branch_from = movement.branch_from
         quantity = movement.quantity
         movement_type = movement.movement_type
-
         # Actualizar el stock
         stock_to, _ = Stock.objects.get_or_create(product=product, branch=branch, defaults={'quantity': 0, 'minimum_stock': 0})
         if movement_type == 'purchase' or (movement_type == 'adjustment' and quantity > 0):
@@ -176,7 +163,6 @@ class MovementSerializer(serializers.ModelSerializer):
                     stock_from.quantity -= quantity
                     stock_from.save()
                 stock_to.quantity += quantity
-
         stock_to.save()
         return movement
 
@@ -186,25 +172,19 @@ class StockSerializer(serializers.ModelSerializer):
     branch = BranchSerializer(read_only=True)
     branch_id = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), source='branch', write_only=True)
     quantity = serializers.ReadOnlyField()
-    
-    # Validar que 'minimum_stock' sea un entero no negativo
     minimum_stock = serializers.IntegerField(min_value=0, error_messages={
         'min_value': 'El stock mínimo no puede ser negativo.',
         'invalid': 'El stock mínimo debe ser un número entero.'
     })
-
     is_low_stock = serializers.SerializerMethodField()
-
     def get_is_low_stock(self, obj):
         return obj.quantity < obj.minimum_stock
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             self.fields['product_id'].queryset = Product.objects.filter(business=request.user.business)
             self.fields['branch_id'].queryset = Branch.objects.filter(business=request.user.business)
-
     class Meta:
         model = Stock
         fields = ['id', 'product', 'product_id', 'branch', 'branch_id', 'quantity', 'minimum_stock', 'is_low_stock']

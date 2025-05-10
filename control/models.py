@@ -7,7 +7,6 @@ class Business(models.Model):
     phone = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(default="")
-
     def __str__(self):
         return self.name
 
@@ -16,7 +15,6 @@ class Branch(models.Model):
     address = models.TextField()
     phone = models.CharField(max_length=20)
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='branches')
-
     def __str__(self):
         return f"{self.name} - {self.business.name}"
 
@@ -24,7 +22,6 @@ class Category(models.Model):
     name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True)
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='categories')
-
     def __str__(self):
         return self.name
 
@@ -34,21 +31,21 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='products')
-
     def __str__(self):
         return f"{self.name} ({self.business.name})"
 
 class Document(models.Model):
     DOCUMENT_TYPES = [
         ('invoice', 'Invoice'),
-        ('receipt', 'Receipt'),
+        ('purchase_order', 'Purchase Order'),
+        ('adjustment_note', 'Adjustment Note'),
+        ('transfer_note', 'Transfer Note'),
     ]
     document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES)
     document_number = models.CharField(max_length=50, unique=True)
     date = models.DateTimeField(auto_now_add=True)
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='documents')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-
     def __str__(self):
         return f"{self.document_type} #{self.document_number}"
 
@@ -61,23 +58,21 @@ class Movement(models.Model):
     ]
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPES)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='movements_to')  # Sucursal destino
-    branch_from = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements_from')  # Sucursal origen
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='movements_to')
+    branch_from = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements_from')
     quantity = models.IntegerField()
     date = models.DateTimeField(auto_now_add=True)
     document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-
     def __str__(self):
         return f"{self.movement_type} - {self.product.name} ({self.quantity}) from {self.branch_from} to {self.branch}"
+
 class Stock(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stocks')
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='stocks')
     quantity = models.IntegerField(default=0)
-    minimum_stock = models.IntegerField(default=0)  # Nuevo campo para alertas
-
+    minimum_stock = models.IntegerField(default=0)
     class Meta:
         unique_together = ('product', 'branch')
-
     def __str__(self):
         return f"{self.product.name} in {self.branch.name}: {self.quantity}"
