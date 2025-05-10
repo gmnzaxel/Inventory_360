@@ -54,11 +54,10 @@ Inventory360 es una solución integral diseñada para empresas que buscan un con
 
 ## 🚀 Tecnologías Utilizadas
 
-- **Backend:** Django
+- **Backend:** Django + Django REST Framework
 - **Base de Datos:** MySQL
-- **Frontend:** Django Templates + Bootstrap
-- **Autenticación:** Django Authentication System
-- **API:** Django REST Framework
+- **Frontend:** React.js
+- **Autenticaciones y Sesiones:**  Django Rest Framework Sessions + CSRF Token
 
 ---
 
