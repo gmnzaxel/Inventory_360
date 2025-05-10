@@ -45,7 +45,7 @@ class Document(models.Model):
     document_number = models.CharField(max_length=50, unique=True)
     date = models.DateTimeField(auto_now_add=True)
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='documents')
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     def __str__(self):
         return f"{self.document_type} #{self.document_number}"
 
