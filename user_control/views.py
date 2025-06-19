@@ -6,6 +6,7 @@ from django.contrib.auth import authenticate, login, logout
 from .models import User
 from .serializer import AdminRegistrationSerializer, UserCreateByAdminSerializer, UserSerializer
 from .permissions import IsAdminUserCustom
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class RegisterAdminView(generics.CreateAPIView):
     serializer_class = AdminRegistrationSerializer
@@ -19,6 +20,15 @@ class CreateUserByAdminView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(business=self.request.user.business)
+    
+    def current_user(request):
+        user = request.user
+        return Response({
+            "username": user.username,
+            "email": user.email,
+            "role": user.rol,
+        })
+
 
 class UserView(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserSerializer
@@ -30,37 +40,42 @@ class UserView(viewsets.ReadOnlyModelViewSet):
             return User.objects.filter(business=user.business)
         return User.objects.filter(id=user.id)
 
-class LoginView(APIView):
-    def post(self, request):
-        identifier = request.data.get("identifier")
-        password = request.data.get("password")
+# class LoginView(APIView):
+#     def post(self, request):
+#         identifier = request.data.get("identifier")
+#         password = request.data.get("password")
 
-        if not identifier or not password:
-            return Response({"error": "Se requiere 'identifier' y 'password'"}, status=status.HTTP_400_BAD_REQUEST)
+#         if not identifier or not password:
+#             return Response({"error": "Se requiere 'identifier' y 'password'"}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            user_obj = User.objects.get(username=identifier)
-        except User.DoesNotExist:
-            try:
-                user_obj = User.objects.get(email=identifier)
-            except User.DoesNotExist:
-                return Response({"error": "Usuario no encontrado"}, status=status.HTTP_400_BAD_REQUEST)
+#         try:
+#             user_obj = User.objects.get(username=identifier)
+#         except User.DoesNotExist:
+#             try:
+#                 user_obj = User.objects.get(email=identifier)
+#             except User.DoesNotExist:
+#                 return Response({"error": "Usuario no encontrado"}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = authenticate(request, username=user_obj.username, password=password)
-        if user:
-            login(request, user)
-            return Response({
-                "message": "Login exitoso",
-                "name": user.name,
-                "email": user.email,
-                "role": user.role
-            }, status=status.HTTP_200_OK)
+#         user = authenticate(request, username=user_obj.username, password=password)
+#         if user:
+#             login(request, user)
+#             return Response({
+#                 "message": "Login exitoso",
+#                 "name": user.name,
+#                 "email": user.email,
+#                 "role": user.role
+#             }, status=status.HTTP_200_OK)
 
-        return Response({"error": "Credenciales incorrectas"}, status=status.HTTP_400_BAD_REQUEST)
+#         return Response({"error": "Credenciales incorrectas"}, status=status.HTTP_400_BAD_REQUEST)
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        logout(request)
-        return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
+        try:
+            refresh_token = request.data.get("refresh")
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({"message": "Sesión cerrada correctamente"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": "Token inválido o ya expirado"}, status=status.HTTP_400_BAD_REQUEST)
