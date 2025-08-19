@@ -9,6 +9,14 @@ from .serializer import (
     MovementSerializer, StockSerializer, DocumentSerializer, CategorySerializer
 )
 from user_control.permissions import IsAdminUserCustom
+from rest_framework.views import APIView
+from django.db.models import Sum, Count, F
+from django.utils import timezone
+from datetime import timedelta
+from dateutil.relativedelta import relativedelta
+import calendar
+from rest_framework.filters import SearchFilter
+
 
 class BusinessView(viewsets.ReadOnlyModelViewSet):
     serializer_class = BusinessSerializer
@@ -19,13 +27,24 @@ class BusinessView(viewsets.ReadOnlyModelViewSet):
 
 class BranchView(viewsets.ModelViewSet):
     serializer_class = BranchSerializer
-    permission_classes = [IsAuthenticated, IsAdminUserCustom]
+    permission_classes = [IsAuthenticated] 
 
     def get_queryset(self):
         return Branch.objects.filter(business=self.request.user.business)
 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            self.permission_classes = [IsAuthenticated, IsAdminUserCustom]
+        return super().get_permissions()
+
     def perform_create(self, serializer):
         serializer.save(business=self.request.user.business)
+        
+    def perform_destroy(self, instance):
+        branch_count = Branch.objects.filter(business=instance.business).count()
+        if branch_count <= 1:
+            raise serializers.ValidationError("No se puede eliminar la última sucursal de la empresa.")
+        instance.delete()
 
 class CategoryView(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
@@ -40,6 +59,8 @@ class CategoryView(viewsets.ModelViewSet):
 class ProductView(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter]
+    search_fields = ['name', 'description']
 
     def get_queryset(self):
         user = self.request.user
@@ -55,10 +76,7 @@ class ProductView(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        business = serializer.validated_data.get('business')
-        if business != self.request.user.business:
-            raise serializers.ValidationError("No puedes asignar un producto a otra empresa.")
-        serializer.save()
+        serializer.save(business=self.request.user.business)
 
 class DocumentView(viewsets.ModelViewSet):
     serializer_class = DocumentSerializer
@@ -130,3 +148,60 @@ class StockView(ReadOnlyModelViewSet):
         queryset = self.get_queryset().filter(product__name__iexact=product_name)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+class DashboardDataView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        business = user.business
+        today = timezone.now().date()
+
+        total_products = Product.objects.filter(business=business).count()
+        sales_this_month = Movement.objects.filter(
+            product__business=business,
+            movement_type='sale',
+            date__year=today.year,
+            date__month=today.month
+        ).aggregate(
+            total_sales=Sum(F('unit_price') * F('quantity'))
+        )['total_sales'] or 0
+        sales_this_month = abs(sales_this_month)
+        low_stock_count = Stock.objects.filter(
+            product__business=business,
+            quantity__lt=F('minimum_stock'),
+            quantity__gt=0 
+        ).count()
+        total_transfers = Movement.objects.filter(
+            product__business=business,
+            movement_type='transfer'
+        ).count()
+
+        recent_activity = Movement.objects.filter(product__business=business).order_by('-date')[:5]
+        recent_activity_serializer = MovementSerializer(recent_activity, many=True, context={'request': request})
+        sales_performance = []
+        for i in range(6):
+            month_date = today - relativedelta(months=i)
+            month_name = calendar.month_abbr[month_date.month]
+            
+            sales = Movement.objects.filter(
+                product__business=business,
+                movement_type='sale',
+                date__year=month_date.year,
+                date__month=month_date.month
+            ).aggregate(
+                total=Sum(F('unit_price') * F('quantity'))
+            )['total'] or 0
+            
+            sales_performance.append({'name': month_name, 'ventas': abs(sales)})
+        
+        sales_performance.reverse()
+
+        data = {
+            'total_products': total_products,
+            'monthly_sales': sales_this_month,
+            'low_stock_count': low_stock_count,
+            'total_transfers': total_transfers,
+            'recent_activity': recent_activity_serializer.data,
+            'sales_performance': sales_performance,
+        }
+        return Response(data)

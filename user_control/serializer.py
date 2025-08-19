@@ -28,6 +28,12 @@ class AdminRegistrationSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password')
         business_data = validated_data.pop('business')
         business = Business.objects.create(**business_data)
+        Branch.objects.create(
+            business=business,
+            name="Casa Central",
+            address=business_data['address'],
+            phone=business_data['phone']
+        )
         return User.objects.create_user(
             role='admin',
             business=business,

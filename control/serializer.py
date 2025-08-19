@@ -1,8 +1,8 @@
 from rest_framework import serializers
 from django.core.validators import RegexValidator
 from .models import Business, Branch, Product, Movement, Stock, Document, Category
+from django.db.models import Sum
 
-# Validador para campos de texto (solo letras, espacios, guiones, apóstrofes, tildes y ñ)
 text_only_validator = RegexValidator(
     regex=r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\'-]+$',
     message='Este campo solo puede contener letras, espacios, guiones, apóstrofes o caracteres en español (como tildes y ñ).'
@@ -34,20 +34,30 @@ class CategorySerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     business = BusinessSerializer(read_only=True)
-    business_id = serializers.PrimaryKeyRelatedField(queryset=Business.objects.all(), source='business', write_only=True)
     category = CategorySerializer(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), source='category', write_only=True, required=False, allow_null=True)
     name = serializers.CharField(validators=[text_only_validator])
     description = serializers.CharField(validators=[text_only_validator])
+    stock = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'price', 'category', 'category_id', 'business', 'business_id']
+        fields = ['id', 'name', 'description', 'price', 'category', 'category_id', 'business', 'stock']
+
+    def get_stock(self, obj):
+        total = Stock.objects.filter(product=obj).aggregate(total_stock=Sum('quantity'))['total_stock']
+        return total or 0
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            self.fields['business_id'].queryset = Business.objects.filter(id=request.user.business_id)
-            self.fields['category_id'].queryset = Category.objects.filter(business=request.user.business)
+            if 'category_id' in self.fields:
+                self.fields['category_id'].queryset = Category.objects.filter(business=request.user.business)
+    
+    def create(self, validated_data):
+        validated_data['business'] = self.context['request'].user.business
+        return super().create(validated_data)
 
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -99,7 +109,6 @@ class MovementSerializer(serializers.ModelSerializer):
         movement_type = data['movement_type']
         document = data.get('document')
         unit_price = data.get('unit_price')
-        # Validar correspondencia entre document_type y movement_type
         if document:
             valid_types = {
                 'sale': 'invoice',
@@ -109,17 +118,14 @@ class MovementSerializer(serializers.ModelSerializer):
             }
             if document.document_type != valid_types.get(movement_type):
                 raise serializers.ValidationError(f"El documento debe ser de tipo '{valid_types[movement_type]}' para movimientos de tipo '{movement_type}'.")
-        # Validar unit_price
         if movement_type in ['purchase', 'sale'] and not unit_price:
             raise serializers.ValidationError("El precio unitario es requerido para compras y ventas.")
         if movement_type in ['adjustment', 'transfer'] and unit_price:
             raise serializers.ValidationError("El precio unitario no debe especificarse para ajustes o transferencias.")
-        # Validar que el producto y las sucursales pertenezcan a la empresa del usuario
         if product.business != user.business or branch.business != user.business:
             raise serializers.ValidationError("El producto o la sucursal no pertenecen a tu empresa.")
         if branch_from and branch_from.business != user.business:
             raise serializers.ValidationError("La sucursal de origen no pertenece a tu empresa.")
-        # Validar permisos granulares
         if movement_type == 'purchase' and not user.can_purchase:
             raise serializers.ValidationError("No tienes permiso para registrar compras.")
         if movement_type == 'sale' and not user.can_sale:
@@ -128,10 +134,8 @@ class MovementSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("No tienes permiso para registrar ajustes.")
         if movement_type == 'transfer' and not user.can_transfer:
             raise serializers.ValidationError("No tienes permiso para registrar transferencias.")
-        # Validar el documento si se proporciona
         if document and document.business != user.business:
             raise serializers.ValidationError("El documento no pertenece a tu empresa.")
-        # Validar stock suficiente para movimientos de salida
         if movement_type == 'sale' or (movement_type == 'adjustment' and quantity < 0):
             try:
                 stock = Stock.objects.get(product=product, branch=branch)
@@ -139,7 +143,6 @@ class MovementSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(f"Stock insuficiente. Disponible: {stock.quantity}")
             except Stock.DoesNotExist:
                 raise serializers.ValidationError("No hay stock registrado para este producto en esta sucursal.")
-        # Validar transferencias
         if movement_type == 'transfer':
             if not branch_from or branch == branch_from:
                 raise serializers.ValidationError("Debes especificar una sucursal de origen diferente a la de destino.")
@@ -157,7 +160,6 @@ class MovementSerializer(serializers.ModelSerializer):
         branch_from = movement.branch_from
         quantity = movement.quantity
         movement_type = movement.movement_type
-        # Actualizar el stock
         stock_to, _ = Stock.objects.get_or_create(product=product, branch=branch, defaults={'quantity': 0, 'minimum_stock': 0})
         if movement_type == 'purchase' or (movement_type == 'adjustment' and quantity > 0):
             stock_to.quantity += quantity
