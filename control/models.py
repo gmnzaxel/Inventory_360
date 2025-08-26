@@ -49,6 +49,16 @@ class Document(models.Model):
     def __str__(self):
         return f"{self.document_type} #{self.document_number}"
 
+class Supplier(models.Model):
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='suppliers')
+    name = models.CharField(max_length=255)
+    contact_person = models.CharField(max_length=255, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
 class Movement(models.Model):
     MOVEMENT_TYPES = [
         ('purchase', 'Purchase'),
@@ -65,6 +75,8 @@ class Movement(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements')
+
     def __str__(self):
         return f"{self.movement_type} - {self.product.name} ({self.quantity}) from {self.branch_from} to {self.branch}"
 
