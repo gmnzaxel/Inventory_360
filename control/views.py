@@ -3,10 +3,10 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Business, Branch, Product, Movement, Stock, Document, Category
+from .models import Business, Branch, Product, Movement, Stock, Document, Category, Supplier
 from .serializer import (
     BusinessSerializer, BranchSerializer, ProductSerializer,
-    MovementSerializer, StockSerializer, DocumentSerializer, CategorySerializer
+    MovementSerializer, StockSerializer, DocumentSerializer, CategorySerializer, SupplierSerializer
 )
 from user_control.permissions import IsAdminUserCustom
 from rest_framework.views import APIView
@@ -16,7 +16,7 @@ from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 import calendar
 from rest_framework.filters import SearchFilter
-
+from django_filters.rest_framework import DjangoFilterBackend
 
 class BusinessView(viewsets.ReadOnlyModelViewSet):
     serializer_class = BusinessSerializer
@@ -76,7 +76,10 @@ class ProductView(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        serializer.save(business=self.request.user.business)
+        product = serializer.save(business=self.request.user.business)
+        branches = Branch.objects.filter(business=self.request.user.business)
+        for branch in branches:
+            Stock.objects.create(product=product, branch=branch, quantity=0, minimum_stock=10)
 
 class DocumentView(viewsets.ModelViewSet):
     serializer_class = DocumentSerializer
@@ -98,6 +101,8 @@ class DocumentView(viewsets.ModelViewSet):
 class MovementView(viewsets.ModelViewSet):
     serializer_class = MovementSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ['movement_type']
 
     def get_queryset(self):
         user = self.request.user
@@ -113,10 +118,6 @@ class MovementView(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        branch = serializer.validated_data.get('branch')
-        product = serializer.validated_data.get('product')
-        if branch.business != self.request.user.business or product.business != self.request.user.business:
-            raise serializers.ValidationError("Sucursal o producto no pertenecen a tu empresa.")
         serializer.save(user=self.request.user)
 
 class StockView(ReadOnlyModelViewSet):
@@ -149,6 +150,16 @@ class StockView(ReadOnlyModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+class SupplierView(viewsets.ModelViewSet):
+    serializer_class = SupplierSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Supplier.objects.filter(business=self.request.user.business)
+
+    def perform_create(self, serializer):
+        serializer.save(business=self.request.user.business)
+
 class DashboardDataView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
@@ -166,11 +177,14 @@ class DashboardDataView(APIView):
             total_sales=Sum(F('unit_price') * F('quantity'))
         )['total_sales'] or 0
         sales_this_month = abs(sales_this_month)
-        low_stock_count = Stock.objects.filter(
+        
+        low_stock_items = Stock.objects.filter(
             product__business=business,
-            quantity__lt=F('minimum_stock'),
-            quantity__gt=0 
-        ).count()
+            quantity__lt=F('minimum_stock')
+        )
+        low_stock_count = low_stock_items.count()
+        low_stock_serializer = StockSerializer(low_stock_items, many=True, context={'request': request})
+        
         total_transfers = Movement.objects.filter(
             product__business=business,
             movement_type='transfer'
@@ -203,5 +217,6 @@ class DashboardDataView(APIView):
             'total_transfers': total_transfers,
             'recent_activity': recent_activity_serializer.data,
             'sales_performance': sales_performance,
+            'low_stock_items': low_stock_serializer.data,
         }
         return Response(data)

@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'control',
     'user_control',
     'rest_framework',
+    'django_filters',
     'corsheaders',
     'drf_spectacular',
     'rest_framework_simplejwt.token_blacklist',

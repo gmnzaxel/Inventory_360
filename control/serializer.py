@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.core.validators import RegexValidator
-from .models import Business, Branch, Product, Movement, Stock, Document, Category
+from .models import Business, Branch, Product, Movement, Stock, Document, Category, Supplier
 from django.db.models import Sum
 
 text_only_validator = RegexValidator(
@@ -73,6 +73,14 @@ class DocumentSerializer(serializers.ModelSerializer):
         validated_data['business'] = self.context['request'].user.business
         return super().create(validated_data)
 
+class SupplierSerializer(serializers.ModelSerializer):
+    business = BusinessSerializer(read_only=True)
+
+    class Meta:
+        model = Supplier
+        fields = ['id', 'name', 'contact_person', 'phone', 'email', 'business']
+        read_only_fields = ['business']
+
 class MovementSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
     product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), source='product', write_only=True)
@@ -83,14 +91,15 @@ class MovementSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.email')
     document = DocumentSerializer(read_only=True)
     document_id = serializers.PrimaryKeyRelatedField(queryset=Document.objects.all(), source='document', write_only=True, required=False, allow_null=True)
-    quantity = serializers.IntegerField(min_value=0, error_messages={
-        'min_value': 'La cantidad no puede ser negativa.',
-        'invalid': 'La cantidad debe ser un número entero.'
-    })
+    supplier = SupplierSerializer(read_only=True)
+    supplier_id = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(), source='supplier', write_only=True, required=False, allow_null=True)
+    quantity = serializers.IntegerField(min_value=1)
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    
     class Meta:
         model = Movement
-        fields = ['id', 'movement_type', 'quantity', 'date', 'product', 'product_id', 'branch', 'branch_id', 'branch_from', 'branch_from_id', 'user', 'document', 'document_id', 'unit_price']
+        fields = ['id', 'movement_type', 'quantity', 'date', 'product', 'product_id', 'branch', 'branch_id', 'branch_from', 'branch_from_id', 'user', 'document', 'document_id', 'unit_price', 'supplier', 'supplier_id']
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
@@ -100,6 +109,8 @@ class MovementSerializer(serializers.ModelSerializer):
             self.fields['branch_id'].queryset = Branch.objects.filter(business=user.business)
             self.fields['branch_from_id'].queryset = Branch.objects.filter(business=user.business)
             self.fields['document_id'].queryset = Document.objects.filter(business=user.business)
+            self.fields['supplier_id'].queryset = Supplier.objects.filter(business=user.business)
+
     def validate(self, data):
         product = data['product']
         branch = data['branch']
@@ -181,19 +192,19 @@ class StockSerializer(serializers.ModelSerializer):
     branch = BranchSerializer(read_only=True)
     branch_id = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), source='branch', write_only=True)
     quantity = serializers.ReadOnlyField()
-    minimum_stock = serializers.IntegerField(min_value=0, error_messages={
-        'min_value': 'El stock mínimo no puede ser negativo.',
-        'invalid': 'El stock mínimo debe ser un número entero.'
-    })
+    minimum_stock = serializers.IntegerField(min_value=0)
     is_low_stock = serializers.SerializerMethodField()
+    
     def get_is_low_stock(self, obj):
         return obj.quantity < obj.minimum_stock
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             self.fields['product_id'].queryset = Product.objects.filter(business=request.user.business)
             self.fields['branch_id'].queryset = Branch.objects.filter(business=request.user.business)
+            
     class Meta:
         model = Stock
         fields = ['id', 'product', 'product_id', 'branch', 'branch_id', 'quantity', 'minimum_stock', 'is_low_stock']

@@ -34,10 +34,16 @@ class AdminRegistrationSerializer(serializers.ModelSerializer):
             address=business_data['address'],
             phone=business_data['phone']
         )
+        
+        # Al crear el admin, se le otorgan todos los permisos por defecto
         return User.objects.create_user(
             role='admin',
             business=business,
             password=password,
+            can_purchase=True,
+            can_sale=True,
+            can_adjust=True,
+            can_transfer=True,
             **validated_data
         )
 
