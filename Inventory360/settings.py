@@ -11,13 +11,10 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
-
 from datetime import timedelta
-
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -29,7 +26,6 @@ SECRET_KEY = 'django-insecure-yr*^3%kq*ipz@utn+-e#vbup@s(!-_b28(be5ep6bmjw(w_)f+
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -80,24 +76,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Inventory360.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'inventory360',  
-        'USER': 'inventory360_user',         
-        'PASSWORD': 'user1234',  
-        'HOST': 'localhost',          
-        'PORT': '3306',               
+        'NAME': 'inventory360',
+        'USER': 'inventory360_user',
+        'PASSWORD': 'user1234',
+        'HOST': 'localhost',
+        'PORT': '3306',
         'OPTIONS': {
-            'charset': 'utf8mb4',  
+            'charset': 'utf8mb4',
         }
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -117,7 +111,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
@@ -128,7 +121,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
@@ -148,38 +140,19 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-
-
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),  # Duración del token de acceso
-
-
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # Duración del token de refresco
-
-
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
-
-
     'BLACKLIST_AFTER_ROTATION': True,
-
-
 }
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-]   
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 AUTH_USER_MODEL = 'user_control.User'
-
-SIMPLE_JWT = {
-
-
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # Duración del token de refresco
-
-    'ROTATE_REFRESH_TOKENS': True,
-
-    'BLACKLIST_AFTER_ROTATION': True,
-
-
-}
