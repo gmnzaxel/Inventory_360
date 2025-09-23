@@ -29,10 +29,10 @@ class AdminRegistrationSerializer(serializers.ModelSerializer):
         password = attrs.get('password') or ''
         password2 = attrs.get('password2') or ''
         if password != password2:
-            raise serializers.ValidationError({"password": "Las contraseñas no coinciden."})
+            raise serializers.ValidationError({"password": "Las contrasenas no coinciden."})
         strong = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$")
         if not strong.match(password):
-            raise serializers.ValidationError({"password": "La contraseña debe tener 8+ caracteres, incluir letras, números y un símbolo."})
+            raise serializers.ValidationError({"password": "La contrasena debe tener 8+ caracteres e incluir letras, numeros y un simbolo."})
 
         business = attrs.get('business') or {}
         if len((business.get('name') or '').strip()) == 0:
@@ -40,9 +40,9 @@ class AdminRegistrationSerializer(serializers.ModelSerializer):
         if len(business.get('name') or '') > 100:
             raise serializers.ValidationError({"business": "El nombre de la empresa no puede exceder 100 caracteres."})
         if len(business.get('address') or '') > 200:
-            raise serializers.ValidationError({"business": "La dirección no puede exceder 200 caracteres."})
+            raise serializers.ValidationError({"business": "La direccion no puede exceder 200 caracteres."})
         if len(business.get('phone') or '') > 30:
-            raise serializers.ValidationError({"business": "El teléfono no puede exceder 30 caracteres."})
+            raise serializers.ValidationError({"business": "El telefono no puede exceder 30 caracteres."})
         return attrs
 
     def create(self, validated_data):
@@ -88,10 +88,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
         password = attrs.get('password') or ''
         password2 = attrs.get('password2') or ''
         if password != password2:
-            raise serializers.ValidationError({"password": "Las contraseñas no coinciden."})
+            raise serializers.ValidationError({"password": "Las contrasenas no coinciden."})
         strong = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$")
         if not strong.match(password):
-            raise serializers.ValidationError({"password": "La contraseña debe tener 8+ caracteres, incluir letras, números y un símbolo."})
+            raise serializers.ValidationError({"password": "La contrasena debe tener 8+ caracteres e incluir letras, numeros y un simbolo."})
         return attrs
 
     def create(self, validated_data):
@@ -112,4 +112,3 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'email', 'name', 'role', 'business', 'branch', 'can_purchase', 'can_sale', 'can_adjust', 'can_transfer']
-
