@@ -1,32 +1,55 @@
 from rest_framework import serializers
+import re
 from .models import User
 from control.models import Business, Branch
-import uuid
-from control.serializer import BusinessSerializer, BranchSerializer
+from control.serializer import BusinessSerializer as ControlBusinessSerializer, BranchSerializer as ControlBranchSerializer
+
 
 class BusinessSerializer(serializers.ModelSerializer):
     class Meta:
         model = Business
         fields = ['name', 'address', 'phone']
 
+
 class AdminRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-    password2 = serializers.CharField(write_only=True)
+    password2 = serializers.CharField(style={'input_type': 'password'}, write_only=True)
     business = BusinessSerializer(write_only=True)
 
     class Meta:
         model = User
-        fields = ['name', 'email', 'username', 'password', 'password2', 'business']
+        fields = ['name', 'email', 'password', 'password2', 'business']
 
     def validate(self, attrs):
-        if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError("Las contraseñas no coinciden.")
+        name = (attrs.get('name') or '').strip()
+        if len(name) == 0:
+            raise serializers.ValidationError({"name": "El nombre es requerido."})
+        if len(name) > 60:
+            raise serializers.ValidationError({"name": "El nombre no puede exceder 60 caracteres."})
+
+        password = attrs.get('password') or ''
+        password2 = attrs.get('password2') or ''
+        if password != password2:
+            raise serializers.ValidationError({"password": "Las contraseñas no coinciden."})
+        strong = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$")
+        if not strong.match(password):
+            raise serializers.ValidationError({"password": "La contraseña debe tener 8+ caracteres, incluir letras, números y un símbolo."})
+
+        business = attrs.get('business') or {}
+        if len((business.get('name') or '').strip()) == 0:
+            raise serializers.ValidationError({"business": "El nombre de la empresa es requerido."})
+        if len(business.get('name') or '') > 100:
+            raise serializers.ValidationError({"business": "El nombre de la empresa no puede exceder 100 caracteres."})
+        if len(business.get('address') or '') > 200:
+            raise serializers.ValidationError({"business": "La dirección no puede exceder 200 caracteres."})
+        if len(business.get('phone') or '') > 30:
+            raise serializers.ValidationError({"business": "El teléfono no puede exceder 30 caracteres."})
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop('password2')
-        password = validated_data.pop('password')
         business_data = validated_data.pop('business')
+        password = validated_data.pop('password')
+        validated_data.pop('password2')
+
         business = Business.objects.create(**business_data)
         Branch.objects.create(
             business=business,
@@ -34,9 +57,8 @@ class AdminRegistrationSerializer(serializers.ModelSerializer):
             address=business_data['address'],
             phone=business_data['phone']
         )
-        
-        # Al crear el admin, se le otorgan todos los permisos por defecto
-        return User.objects.create_user(
+
+        user = User.objects.create_user(
             role='admin',
             business=business,
             password=password,
@@ -46,56 +68,48 @@ class AdminRegistrationSerializer(serializers.ModelSerializer):
             can_transfer=True,
             **validated_data
         )
+        return user
 
-class UserCreateByAdminSerializer(serializers.ModelSerializer):
-    business = BusinessSerializer(read_only=True)
-    branch = BranchSerializer(read_only=True)
-    branch_id = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), source='branch', write_only=True, required=False, allow_null=True)
-    password = serializers.CharField(write_only=True)
+
+class UserCreateSerializer(serializers.ModelSerializer):
+    password2 = serializers.CharField(style={'input_type': 'password'}, write_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'name', 'role', 'business', 'branch', 'branch_id', 'password', 'can_purchase', 'can_sale', 'can_adjust', 'can_transfer']
+        fields = ['id', 'email', 'name', 'password', 'password2', 'role', 'can_purchase', 'can_sale', 'can_adjust', 'can_transfer']
 
-    def validate(self, data):
-        user = self.context['request'].user
-        if not user.is_authenticated or user.role != 'admin':
-            raise serializers.ValidationError("Solo los administradores pueden crear usuarios.")
+    def validate(self, attrs):
+        name = (attrs.get('name') or '').strip()
+        if len(name) == 0:
+            raise serializers.ValidationError({"name": "El nombre es requerido."})
+        if len(name) > 60:
+            raise serializers.ValidationError({"name": "El nombre no puede exceder 60 caracteres."})
 
-        role = data.get('role')
-        branch = data.get('branch')
-
-        if role == 'user' and not branch:
-            raise serializers.ValidationError("Los usuarios deben estar asignados a una sucursal.")
-
-        if role == 'admin' and branch:
-            raise serializers.ValidationError("Los administradores no deben estar asignados a una sucursal.")
-
-        if branch and branch.business != user.business:
-            raise serializers.ValidationError("La sucursal no pertenece a tu empresa.")
-
-        return data
+        password = attrs.get('password') or ''
+        password2 = attrs.get('password2') or ''
+        if password != password2:
+            raise serializers.ValidationError({"password": "Las contraseñas no coinciden."})
+        strong = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$")
+        if not strong.match(password):
+            raise serializers.ValidationError({"password": "La contraseña debe tener 8+ caracteres, incluir letras, números y un símbolo."})
+        return attrs
 
     def create(self, validated_data):
-        user = User(
-            email=validated_data['email'],
-            name=validated_data['name'],
-            role=validated_data['role'],
-            business=self.context['request'].user.business,
-            branch=validated_data.get('branch'),
-            can_purchase=validated_data.get('can_purchase', False),
-            can_sale=validated_data.get('can_sale', False),
-            can_adjust=validated_data.get('can_adjust', False),
-            can_transfer=validated_data.get('can_transfer', False),
+        validated_data.pop('password2')
+        password = validated_data.pop('password')
+
+        user = User.objects.create_user(
+            password=password,
+            **validated_data
         )
-        user.set_password(validated_data['password'])
-        user.save()
         return user
-    
+
+
 class UserSerializer(serializers.ModelSerializer):
-    business = BusinessSerializer(read_only=True)
-    branch = BranchSerializer(read_only=True)
+    business = ControlBusinessSerializer(read_only=True)
+    branch = ControlBranchSerializer(read_only=True)
 
     class Meta:
         model = User
         fields = ['id', 'email', 'name', 'role', 'business', 'branch', 'can_purchase', 'can_sale', 'can_adjust', 'can_transfer']
+

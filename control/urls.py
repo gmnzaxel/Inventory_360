@@ -20,5 +20,4 @@ router.register(r'suppliers', SupplierView, basename='supplier')
 urlpatterns = [
     path('', include(router.urls)),
     path('dashboard-data/', DashboardDataView.as_view(), name='dashboard-data'),
-    path('', include(router.urls)),
 ]
