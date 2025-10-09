@@ -159,10 +159,22 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     *[o for o in os.getenv(
         'CORS_ALLOWED_ORIGINS',
-        'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173'
+        'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,'
+        'http://localhost:5173,http://127.0.0.1:5173'
     ).split(',') if o]
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https?://localhost:\d+$',
+    r'^https?://127\.0\.0\.1:\d+$',
+]
 CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    *[o for o in os.getenv(
+        'CSRF_TRUSTED_ORIGINS',
+        'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001'
+    ).split(',') if o]
+]
 
 # Custom user model
 AUTH_USER_MODEL = 'user_control.User'
