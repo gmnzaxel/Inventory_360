@@ -82,6 +82,11 @@ class ProductView(viewsets.ModelViewSet):
     filter_backends = [SearchFilter]
     search_fields = ['name', 'description']
 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdminUserCustom()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
