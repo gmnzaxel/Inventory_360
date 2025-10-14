@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 from datetime import timedelta
+import dj_database_url
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -21,13 +22,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-yr*^3%kq*ipz@utn+-e#vbup@s(!-_b28(be5ep6bmjw(w_)f+')
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() == 'true'
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = [h for h in os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h]
-
+ALLOWED_HOSTS = [os.environ.get('ALLOWED_HOSTS')]
+CSRF_TRUSTED_ORIGINS = [
+    "https://%2A.railway.app/",
+]
 
 # Application definition
 
@@ -49,6 +52,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -83,17 +87,11 @@ WSGI_APPLICATION = 'Inventory360.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('DB_NAME', 'inventory360'),
-        'USER': os.getenv('DB_USER', 'inventory360_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'user1234'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '3306'),
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-        }
-    }
+    'default': dj_database_url.config(
+        default=os.environ.get('MYSQL_URL'),
+        conn_max_age=600,
+        conn_health_checks=True,
+        )
 }
 
 
@@ -119,9 +117,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-ar'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Argentina/Buenos_Aires'
 
 USE_I18N = True
 
@@ -132,6 +130,14 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
+
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -162,6 +168,7 @@ CORS_ALLOWED_ORIGINS = [
         'CORS_ALLOWED_ORIGINS',
         'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,'
         'http://localhost:5173,http://127.0.0.1:5173'
+        "https://12inventory360.netlify.app/"
     ).split(',') if o]
 ]
 CORS_ALLOWED_ORIGIN_REGEXES = [
