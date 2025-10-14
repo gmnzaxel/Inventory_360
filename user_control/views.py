@@ -1,4 +1,4 @@
-﻿from rest_framework import viewsets, status, generics
+from rest_framework import viewsets, status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -32,12 +32,12 @@ class UserViewSet(viewsets.ModelViewSet):
         password = request.data.get('password') or ''
         password2 = request.data.get('password2') or ''
         if password != password2:
-            return Response({"password": "Las contraseÃ±as no coinciden."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"password": "Las contraseAas no coinciden."}, status=status.HTTP_400_BAD_REQUEST)
         if len(password) < 8:
-            return Response({"password": "La contraseÃ±a debe tener al menos 8 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"password": "La contraseAa debe tener al menos 8 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
         user.set_password(password)
         user.save()
-        return Response({"detail": "ContraseÃ±a actualizada."}, status=status.HTTP_200_OK)
+        return Response({"detail": "ContraseAa actualizada."}, status=status.HTTP_200_OK)
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
@@ -47,9 +47,9 @@ class LogoutView(APIView):
             refresh_token = request.data.get("refresh")
             token = RefreshToken(refresh_token)
             token.blacklist()
-            return Response({"message": "SesiÃ³n cerrada correctamente"}, status=status.HTTP_200_OK)
+            return Response({"message": "SesiA3n cerrada correctamente"}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": "Token invÃ¡lido o ya expirado"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Token invAlido o ya expirado"}, status=status.HTTP_400_BAD_REQUEST)
 
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
@@ -64,14 +64,14 @@ class CurrentUserView(APIView):
         new = request.data.get('new_password') or ''
         new2 = request.data.get('new_password2') or ''
         if not request.user.check_password(old):
-            return Response({"old_password": "La contraseÃ±a actual es incorrecta."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"old_password": "La contraseAa actual es incorrecta."}, status=status.HTTP_400_BAD_REQUEST)
         if new != new2:
-            return Response({"new_password": "Las contraseÃ±as no coinciden."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"new_password": "Las contraseAas no coinciden."}, status=status.HTTP_400_BAD_REQUEST)
         if len(new) < 8:
-            return Response({"new_password": "La contraseÃ±a debe tener al menos 8 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"new_password": "La contraseAa debe tener al menos 8 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
         request.user.set_password(new)
         request.user.save()
-        return Response({"detail": "ContraseÃ±a actualizada."}, status=status.HTTP_200_OK)
+        return Response({"detail": "ContraseAa actualizada."}, status=status.HTTP_200_OK)
 
 class DeleteUserView(APIView):
     permission_classes = [IsAuthenticated]
@@ -86,9 +86,9 @@ class DeleteUserView(APIView):
 
             if other_admins_count == 0:
                 user.business.delete()
-                return Response({"message": "Empresa y cuenta eliminadas con Ã©xito."}, status=status.HTTP_204_NO_CONTENT)
+                return Response({"message": "Empresa y cuenta eliminadas con Axito."}, status=status.HTTP_204_NO_CONTENT)
         
         user.delete()
-        return Response({"message": "Cuenta eliminada con Ã©xito."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"message": "Cuenta eliminada con Axito."}, status=status.HTTP_204_NO_CONTENT)
 
 

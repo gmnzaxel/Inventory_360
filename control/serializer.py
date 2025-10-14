@@ -1,6 +1,7 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from .models import Business, Branch, Product, Movement, Stock, Document, Category, Supplier
 from django.db.models import Sum, Min
+from Inventory360.api_errors import ConflictError, ApiError, ForbiddenError
 
 class BusinessSerializer(serializers.ModelSerializer):
     class Meta:
@@ -9,11 +10,49 @@ class BusinessSerializer(serializers.ModelSerializer):
 
 class BranchSerializer(serializers.ModelSerializer):
     business = BusinessSerializer(read_only=True)
+
+    def validate_name(self, value):
+        name = (value or '').strip()
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        business = getattr(user, 'business', None)
+        if business:
+            queryset = Branch.objects.filter(business=business, name__iexact=name)
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise ConflictError(
+                    detail=f"Ya existe '{name}' en esta empresa.",
+                    code='branch.duplicate',
+                    request=request,
+                    details={'field': 'name'}
+                )
+        return name
+
     class Meta:
         model = Branch
         fields = ['id', 'name', 'address', 'phone', 'business']
 
 class CategorySerializer(serializers.ModelSerializer):
+
+    def validate_name(self, value):
+        name = (value or '').strip()
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        business = getattr(user, 'business', None)
+        if business:
+            queryset = Category.objects.filter(business=business, name__iexact=name)
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise ConflictError(
+                    detail=f"Ya existe '{name}' en esta empresa.",
+                    code='category.duplicate',
+                    request=request,
+                    details={'field': 'name'}
+                )
+        return name
+
     class Meta:
         model = Category
         fields = ['id', 'name', 'description', 'business']
@@ -30,6 +69,7 @@ class ProductSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), source='category', write_only=True, required=False, allow_null=True)
     name = serializers.CharField()
     description = serializers.CharField(required=False, allow_blank=True)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     stock = serializers.SerializerMethodField()
     minimum_stock = serializers.SerializerMethodField()
     minimum_stock_input = serializers.IntegerField(write_only=True, required=False, default=10)
@@ -38,12 +78,34 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = ['id', 'name', 'description', 'price', 'category', 'category_id', 'business', 'stock', 'minimum_stock', 'minimum_stock_input', 'image']
 
+    def _resolve_branch_context(self):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return None, False
+        user = request.user
+        include_all = (request.query_params.get('include_all', 'false').lower() == 'true')
+        if user.role == 'admin':
+            # Admins return global stock unless include_all explicitly requested.
+            return (user.branch if user.branch and not include_all else None), include_all
+        # Employees always scoped to their branch unless include_all requested (e.g. purchases)
+        if include_all:
+            return None, include_all
+        return (user.branch if user.branch_id else None), include_all
+
     def get_stock(self, obj):
-        total = obj.stocks.aggregate(total_stock=Sum('quantity'))['total_stock']
+        branch, include_all = self._resolve_branch_context()
+        if branch:
+            total = obj.stocks.filter(branch=branch).aggregate(total_stock=Sum('quantity'))['total_stock']
+        else:
+            total = obj.stocks.aggregate(total_stock=Sum('quantity'))['total_stock']
         return total or 0
     
     def get_minimum_stock(self, obj):
-        agg = obj.stocks.aggregate(min_value=Min('minimum_stock'))['min_value']
+        branch, include_all = self._resolve_branch_context()
+        if branch:
+            agg = obj.stocks.filter(branch=branch).aggregate(min_value=Min('minimum_stock'))['min_value']
+        else:
+            agg = obj.stocks.aggregate(min_value=Min('minimum_stock'))['min_value']
         return agg if agg is not None else 10
 
     def __init__(self, *args, **kwargs):
@@ -52,7 +114,43 @@ class ProductSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             if 'category_id' in self.fields:
                 self.fields['category_id'].queryset = Category.objects.filter(business=request.user.business)
-    
+
+    def validate_name(self, value):
+        name = (value or '').strip()
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        business = getattr(user, 'business', None)
+        if business:
+            queryset = Product.objects.filter(business=business, name__iexact=name)
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise ConflictError(
+                    detail=f"Ya existe '{name}' en esta empresa.",
+                    code='product.duplicate',
+                    request=request,
+                    details={'field': 'name'}
+                )
+        return name
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        business = getattr(user, 'business', None)
+        category = attrs.get('category')
+        if category and business and category.business_id != business.id:
+            raise ApiError(
+                detail="La categoria seleccionada no pertenece a tu empresa.",
+                code='product.category_mismatch',
+                request=request,
+                details={'field': 'category_id'}
+            )
+        price = attrs.get('price')
+        if price == '' or price is None:
+            attrs['price'] = None
+        return attrs
+
     def create(self, validated_data):
         validated_data.pop('minimum_stock_input', None)
         validated_data['business'] = self.context['request'].user.business
@@ -120,7 +218,8 @@ class MovementSerializer(serializers.ModelSerializer):
         branch = data['branch']
         branch_from = data.get('branch_from')
         quantity = data['quantity']
-        user = self.context['request'].user
+        request = self.context.get('request')
+        user = request.user if request else None
         movement_type = data['movement_type']
         document = data.get('document')
         unit_price = data.get('unit_price')
@@ -146,14 +245,27 @@ class MovementSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("El producto o la sucursal no pertenecen a tu empresa.")
         if branch_from and branch_from.business != user.business:
             raise serializers.ValidationError("La sucursal de origen no pertenece a tu empresa.")
+        if user and getattr(user, 'role', None) != 'admin':
+            if branch != user.branch:
+                raise ForbiddenError(
+                    detail="Solo puedes operar sobre tu sucursal asignada.",
+                    code="movements.branch_forbidden",
+                    request=request
+                )
+            if branch_from and branch_from != user.branch:
+                raise ForbiddenError(
+                    detail="No puedes usar otra sucursal como origen.",
+                    code="movements.branch_from_forbidden",
+                    request=request
+                )
         if movement_type == 'purchase' and not user.can_purchase:
-            raise serializers.ValidationError("No tienes permiso para registrar compras.")
+            raise ForbiddenError(detail="No tienes permiso para registrar compras.", code="movements.purchase_forbidden", request=request)
         if movement_type == 'sale' and not user.can_sale:
-            raise serializers.ValidationError("No tienes permiso para registrar ventas.")
+            raise ForbiddenError(detail="No tienes permiso para registrar ventas.", code="movements.sale_forbidden", request=request)
         if movement_type == 'adjustment' and not user.can_adjust:
-            raise serializers.ValidationError("No tienes permiso para registrar ajustes.")
+            raise ForbiddenError(detail="No tienes permiso para registrar ajustes.", code="movements.adjustment_forbidden", request=request)
         if movement_type == 'transfer' and not user.can_transfer:
-            raise serializers.ValidationError("No tienes permiso para registrar transferencias.")
+            raise ForbiddenError(detail="No tienes permiso para registrar transferencias.", code="movements.transfer_forbidden", request=request)
         if document and document.business != user.business:
             raise serializers.ValidationError("El documento no pertenece a tu empresa.")
         if movement_type == 'sale' or (movement_type == 'adjustment' and quantity < 0):
@@ -214,4 +326,8 @@ class StockSerializer(serializers.ModelSerializer):
     class Meta:
         model = Stock
         fields = ['id', 'product', 'product_id', 'branch', 'branch_id', 'quantity', 'minimum_stock', 'is_low_stock']
+
+
+
+
 

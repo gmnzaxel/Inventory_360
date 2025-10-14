@@ -1,4 +1,4 @@
-﻿from rest_framework import viewsets, serializers
+from rest_framework import viewsets, serializers
 from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,7 +10,7 @@ from .serializer import (
 )
 from user_control.permissions import IsAdminUserCustom
 from rest_framework.views import APIView
-from django.db.models import Sum, Count, F
+from django.db.models import Sum, Count, F, Q
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
@@ -20,6 +20,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.http import HttpResponse
 import csv
 import io
+from Inventory360.api_errors import ApiError, ForbiddenError
 
 class BusinessView(viewsets.ReadOnlyModelViewSet):
     serializer_class = BusinessSerializer
@@ -33,7 +34,16 @@ class BranchView(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated] 
 
     def get_queryset(self):
-        return Branch.objects.filter(business=self.request.user.business)
+        user = self.request.user
+        if user.role == 'admin':
+            return Branch.objects.filter(business=user.business)
+        if user.branch_id:
+            return Branch.objects.filter(pk=user.branch_id)
+        raise ForbiddenError(
+            detail="No tienes una sucursal asignada.",
+            code="branch.branch_missing",
+            request=self.request
+        )
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -46,7 +56,7 @@ class BranchView(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         branch_count = Branch.objects.filter(business=instance.business).count()
         if branch_count <= 1:
-            raise serializers.ValidationError("No se puede eliminar la Ãºltima sucursal de la empresa.")
+            raise ApiError(detail="No se puede eliminar la ultima sucursal de la empresa.", code="branch.last_branch", request=self.request)
         instance.delete()
 
 class CategoryView(viewsets.ModelViewSet):
@@ -74,16 +84,34 @@ class ProductView(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        if not user.is_authenticated:
+            return Product.objects.none()
         if user.role == 'admin':
-            return Product.objects.filter(business=user.business)
-        elif user.role == 'user' and user.branch:
-            return Product.objects.filter(business=user.business, stocks__branch=user.branch).distinct()
-        return Product.objects.none()
-
-    def get_permissions(self):
-        if self.action in ['destroy', 'update', 'partial_update']:
-            return [IsAuthenticated(), IsAdminUserCustom()]
-        return [IsAuthenticated()]
+            qs = Product.objects.filter(business=user.business)
+            include_all = self.request.query_params.get('include_all', 'false').lower() == 'true'
+            if not include_all:
+                return qs.filter(stocks__quantity__gt=0).distinct()
+            return qs.distinct()
+        if getattr(user, 'can_view_products', False):
+            if not user.branch_id:
+                raise ForbiddenError(
+                    detail="No tienes una sucursal asignada.",
+                    code="products.branch_missing",
+                    request=self.request
+                )
+            include_all = self.request.query_params.get('include_all', 'false').lower() == 'true'
+            qs = Product.objects.filter(
+                business=user.business,
+                stocks__branch=user.branch
+            ).distinct()
+            if not include_all:
+                qs = qs.filter(stocks__quantity__gt=0)
+            return qs
+        raise ForbiddenError(
+            detail="No tienes permiso para ver productos.",
+            code="products.read_forbidden",
+            request=self.request
+        )
 
     def perform_create(self, serializer):
         minimum_stock_value = serializer.validated_data.get('minimum_stock_input', 10)
@@ -116,7 +144,7 @@ class DocumentView(viewsets.ModelViewSet):
         return Document.objects.none()
 
     def get_permissions(self):
-        if self.action in ['destroy', 'update', 'partial_update']:
+        if self.action in ['destroy', 'update', 'partial_update', 'create']:
             return [IsAuthenticated(), IsAdminUserCustom()]
         return [IsAuthenticated()]
 
@@ -135,13 +163,17 @@ class MovementView(viewsets.ModelViewSet):
         if user.role == 'admin':
             qs = qs.filter(branch__business=user.business)
         elif user.role == 'user':
-            # If the user has a branch assigned, scope to that branch.
-            # If not, fall back to the entire business to avoid hiding data unintentionally
-            # for employees sin sucursal asignada.
             if user.branch:
-                qs = qs.filter(branch=user.branch)
+                qs = qs.filter(
+                    Q(branch=user.branch) |
+                    Q(branch_from=user.branch)
+                ).distinct()
             else:
-                qs = qs.filter(branch__business=user.business)
+                raise ForbiddenError(
+                    detail="No tienes una sucursal asignada.",
+                    code="movements.branch_missing",
+                    request=self.request
+                )
         else:
             qs = qs.none()
 
@@ -159,6 +191,46 @@ class MovementView(viewsets.ModelViewSet):
         if self.action in ['destroy', 'update', 'partial_update']:
             return [IsAuthenticated(), IsAdminUserCustom()]
         return [IsAuthenticated()]
+
+    def _ensure_user_can_create(self, request):
+        user = request.user
+        if user.role == 'admin':
+            return
+
+        movement_type = (request.data.get('movement_type') or '').lower()
+        permission_map = {
+            'sale': getattr(user, 'can_sale', False),
+            'purchase': getattr(user, 'can_purchase', False),
+            'transfer': getattr(user, 'can_transfer', False),
+            'adjustment': getattr(user, 'can_adjust', False),
+        }
+        allowed = permission_map.get(movement_type, False)
+        if not allowed:
+            raise ForbiddenError(
+                detail="No tienes permiso para registrar este movimiento.",
+                code="movements.create_forbidden",
+                request=request
+            )
+
+        branch_id = request.data.get('branch_id')
+        branch_from_id = request.data.get('branch_from_id')
+        if user.branch_id:
+            if branch_id and str(branch_id).isdigit() and int(branch_id) != user.branch_id and movement_type != 'transfer':
+                raise ForbiddenError(
+                    detail="Solo puedes operar en tu sucursal asignada.",
+                    code="movements.branch_forbidden",
+                    request=request
+                )
+            if branch_from_id and str(branch_from_id).isdigit() and int(branch_from_id) != user.branch_id:
+                raise ForbiddenError(
+                    detail="Solo puedes transferir desde tu sucursal asignada.",
+                    code="movements.transfer_origin_forbidden",
+                    request=request
+                )
+
+    def create(self, request, *args, **kwargs):
+        self._ensure_user_can_create(request)
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -206,13 +278,13 @@ class MovementView(viewsets.ModelViewSet):
         if group_by in ['day', 'month', 'year']:
             if group_by == 'day':
                 trunc = TruncDay('date')
-                header_period = 'DÃ­a'
+                header_period = 'Dia'
             elif group_by == 'month':
                 trunc = TruncMonth('date')
                 header_period = 'Mes'
             else:
                 trunc = TruncYear('date')
-                header_period = 'AÃ±o'
+                header_period = 'Año'
 
             agg = (
                 qs.annotate(period=trunc)
@@ -268,6 +340,12 @@ class StockView(ReadOnlyModelViewSet):
             queryset = queryset.filter(branch__business=user.business)
         elif user.role == 'user' and user.branch:
             queryset = queryset.filter(branch=user.branch)
+        elif user.role == 'user':
+            raise ForbiddenError(
+                detail="No tienes una sucursal asignada.",
+                code="stock.branch_missing",
+                request=self.request
+            )
 
         product_id = self.request.query_params.get('product_id', None)
         branch_id = self.request.query_params.get('branch_id', None)
@@ -304,55 +382,78 @@ class DashboardDataView(APIView):
         business = user.business
         today = timezone.now().date()
 
-        total_products = Product.objects.filter(business=business).count()
-        
-        sales_this_month = Movement.objects.filter(
-            branch__business=business,
+        if user.role == 'admin':
+            product_queryset = Product.objects.filter(business=business)
+            movement_base = Movement.objects.filter(branch__business=business)
+        else:
+            if not user.branch_id:
+                raise ForbiddenError(
+                    detail="No tienes una sucursal asignada.",
+                    code="dashboard.branch_missing",
+                    request=request
+                )
+            branch = user.branch
+            product_queryset = Product.objects.filter(
+                business=business,
+                stocks__branch=branch,
+                stocks__quantity__gt=0
+            ).distinct()
+            movement_base = Movement.objects.filter(
+                Q(branch=branch) | Q(branch_from=branch),
+                branch__business=business
+            )
+
+        total_products = product_queryset.count()
+
+        sales_this_month = movement_base.filter(
             movement_type='sale',
+            branch__business=business,
             date__year=today.year,
             date__month=today.month
-        ).aggregate(
+        )
+        if user.role != 'admin':
+            sales_this_month = sales_this_month.filter(branch=user.branch)
+
+        sales_this_month_value = sales_this_month.aggregate(
             total_sales=Sum(F('unit_price') * F('quantity'))
         )['total_sales'] or 0
-        sales_this_month = abs(sales_this_month)
-        
-        monthly_sales_count = Movement.objects.filter(
-            branch__business=business,
-            movement_type='sale',
-            date__year=today.year,
-            date__month=today.month
-        ).count()
-        
+        sales_this_month_value = abs(sales_this_month_value)
+
+        monthly_sales_count = sales_this_month.count()
+
         low_stock_items = Stock.objects.filter(
             branch__business=business,
             quantity__lt=F('minimum_stock')
         )
+        if user.role != 'admin':
+            low_stock_items = low_stock_items.filter(branch=user.branch)
+
         low_stock_count = low_stock_items.count()
-        
-        recent_activity = Movement.objects.filter(branch__business=business).order_by('-date')[:5]
+
+        recent_activity = movement_base.order_by('-date')[:5]
         recent_activity_serializer = MovementSerializer(recent_activity, many=True, context={'request': request})
-        
+
         sales_performance = []
         for i in range(6):
             month_date = today - relativedelta(months=i)
             month_name = calendar.month_abbr[month_date.month]
-            
-            sales = Movement.objects.filter(
-                branch__business=business,
+
+            monthly_query = movement_base.filter(
                 movement_type='sale',
                 date__year=month_date.year,
                 date__month=month_date.month
-            ).aggregate(
+            )
+            sales = monthly_query.aggregate(
                 total=Sum(F('unit_price') * F('quantity'))
             )['total'] or 0
-            
+
             sales_performance.append({'name': month_name, 'ventas': abs(sales)})
-        
+
         sales_performance.reverse()
 
         data = {
             'total_products': total_products,
-            'monthly_sales': sales_this_month,
+            'monthly_sales': sales_this_month_value,
             'monthly_sales_count': monthly_sales_count,
             'low_stock_count': low_stock_count,
             'recent_activity': recent_activity_serializer.data,
@@ -360,5 +461,10 @@ class DashboardDataView(APIView):
             'low_stock_items': StockSerializer(low_stock_items, many=True, context={'request': request}).data,
         }
         return Response(data)
+
+
+
+
+
 
 

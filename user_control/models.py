@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from control.models import Business, Branch
+from django.db.models import Q
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -29,6 +30,14 @@ class UserManager(BaseUserManager):
         return self.create_user(email, password, **extra_fields)
 
 class User(AbstractUser):
+    PERMISSION_FLAGS = {
+        'can_sale': 'ventas:execute',
+        'can_purchase': 'compras:execute',
+        'can_adjust': 'ajustes:execute',
+        'can_transfer': 'transferencias:execute',
+        'can_view_products': 'productos:read',
+    }
+
     name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=10, choices=[('admin', 'Admin'), ('user', 'User')])
@@ -38,8 +47,38 @@ class User(AbstractUser):
     can_sale = models.BooleanField(default=False)
     can_adjust = models.BooleanField(default=False)
     can_transfer = models.BooleanField(default=False)
+    can_view_products = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=Q(role='admin') | ~Q(branch__isnull=True),
+                name='user_branch_required_for_non_admin'
+            ),
+        ]
+
+    @property
+    def permission_codes(self):
+        codes = set()
+        if self.role == 'admin':
+            codes.add('admin:full')
+        for field, code in self.PERMISSION_FLAGS.items():
+            if getattr(self, field):
+                codes.add(code)
+        if self.role == 'admin':
+            codes.add('productos:read')
+        return sorted(codes)
+
+    def has_permission(self, code: str) -> bool:
+        return code in self.permission_codes
+
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['name']
     objects = UserManager()
     def __str__(self):
         return f"{self.name} ({self.email})"
+
+
+
+
+

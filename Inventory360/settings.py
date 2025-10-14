@@ -144,6 +144,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PAGINATION_CLASS': 'Inventory360.pagination.DefaultPagination',
+    'EXCEPTION_HANDLER': 'Inventory360.api_errors.inventory_exception_handler',
 }
 
 
