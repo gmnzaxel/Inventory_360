@@ -164,9 +164,9 @@ SIMPLE_JWT = {
 
 # CORS
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000/",
-    "https://inventory360-production.up.railway.app/",
-    "https://12inventory360.netlify.app/"
+    "http://localhost:3000",
+    "https://inventory360-production.up.railway.app",
+    "https://12inventory360.netlify.app"
 ]
 
 
