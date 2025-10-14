@@ -164,13 +164,12 @@ SIMPLE_JWT = {
 
 # CORS
 CORS_ALLOWED_ORIGINS = [
-    *[o for o in os.getenv(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,'
-        'http://localhost:5173,http://127.0.0.1:5173'
-        "https://12inventory360.netlify.app/"
-    ).split(',') if o]
+    "http://localhost:3000/",
+    "https://inventory360-production.up.railway.app/",
+    "https://12inventory360.netlify.app/"
 ]
+
+
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r'^https?://localhost:\d+$',
     r'^https?://127\.0\.0\.1:\d+$',
