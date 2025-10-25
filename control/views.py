@@ -337,6 +337,8 @@ class MovementView(viewsets.ModelViewSet):
 class StockView(ReadOnlyModelViewSet):
     serializer_class = StockSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter]
+    search_fields = ['product__name']
 
     def get_queryset(self):
         user = self.request.user
