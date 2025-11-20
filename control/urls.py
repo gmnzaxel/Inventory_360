@@ -15,7 +15,7 @@ router.register(r'documents', DocumentView, basename='document')
 router.register(r'categories', CategoryView, basename='category')
 
 urlpatterns = [
-    path('', include(router.urls)),
-    path('dashboard-data/', DashboardDataView.as_view(), name='dashboard-data'),
     path('stocks/low-stock-export/', LowStockExportView.as_view(), name='low-stock-export'),
+    path('dashboard-data/', DashboardDataView.as_view(), name='dashboard-data'),
+    path('', include(router.urls)),
 ]
