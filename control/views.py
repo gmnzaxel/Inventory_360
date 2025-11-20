@@ -365,14 +365,31 @@ class StockView(ReadOnlyModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['get'], url_path='low-stock-export')
-    def low_stock_export(self, request):
-        queryset = self.get_queryset().filter(quantity__lt=F('minimum_stock'))
+class LowStockExportView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        queryset = Stock.objects.select_related('product', 'branch').filter(
+            quantity__lt=F('minimum_stock')
+        )
+        
+        if user.role == 'admin':
+            queryset = queryset.filter(branch__business=user.business)
+        elif user.role == 'user' and user.branch:
+            queryset = queryset.filter(branch=user.branch)
+        elif user.role == 'user':
+            raise ForbiddenError(
+                detail="No tienes una sucursal asignada.",
+                code="stock.branch_missing",
+                request=request
+            )
+        
         output = io.StringIO()
         output.write('\ufeff')
         writer = csv.writer(output)
         writer.writerow(['Producto', 'Sucursal', 'Cantidad', 'Stock minimo'])
-        for stock in queryset.select_related('product', 'branch'):
+        for stock in queryset:
             writer.writerow([
                 getattr(stock.product, 'name', ''),
                 getattr(stock.branch, 'name', ''),

@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     BusinessView, BranchView, ProductView, MovementView, 
-    StockView, DocumentView, CategoryView, DashboardDataView
+    StockView, DocumentView, CategoryView, DashboardDataView, LowStockExportView
 )
 
 router = DefaultRouter()
@@ -17,4 +17,5 @@ router.register(r'categories', CategoryView, basename='category')
 urlpatterns = [
     path('', include(router.urls)),
     path('dashboard-data/', DashboardDataView.as_view(), name='dashboard-data'),
+    path('stocks/low-stock-export/', LowStockExportView.as_view(), name='low-stock-export'),
 ]
