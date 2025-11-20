@@ -443,20 +443,37 @@ class DashboardDataView(APIView):
         recent_activity_serializer = MovementSerializer(recent_activity, many=True, context={'request': request})
 
         sales_performance = []
+        # Optimization: Get last 6 months data in a single query
+        six_months_ago = today - relativedelta(months=5)
+        # Ensure we start from the first day of that month
+        start_date = six_months_ago.replace(day=1)
+        
+        sales_data = (
+            movement_base.filter(
+                movement_type='sale',
+                date__date__gte=start_date
+            )
+            .annotate(month=TruncMonth('date'))
+            .values('month')
+            .annotate(total=Sum(F('unit_price') * F('quantity')))
+            .order_by('month')
+        )
+
+        # Create a map for easy lookup
+        sales_map = {
+            item['month'].strftime('%Y-%m'): abs(item['total'] or 0)
+            for item in sales_data
+        }
+
+        sales_performance = []
         for i in range(6):
             month_date = today - relativedelta(months=i)
+            key = month_date.strftime('%Y-%m')
             month_name = calendar.month_abbr[month_date.month]
-
-            monthly_query = movement_base.filter(
-                movement_type='sale',
-                date__year=month_date.year,
-                date__month=month_date.month
-            )
-            sales = monthly_query.aggregate(
-                total=Sum(F('unit_price') * F('quantity'))
-            )['total'] or 0
-
-            sales_performance.append({'name': month_name, 'ventas': abs(sales)})
+            sales_performance.append({
+                'name': month_name, 
+                'ventas': sales_map.get(key, 0)
+            })
 
         sales_performance.reverse()
 
