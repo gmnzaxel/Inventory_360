@@ -3,10 +3,10 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Business, Branch, Product, Movement, Stock, Document, Category, Supplier
+from .models import Business, Branch, Product, Movement, Stock, Document, Category
 from .serializer import (
     BusinessSerializer, BranchSerializer, ProductSerializer,
-    MovementSerializer, StockSerializer, DocumentSerializer, CategorySerializer, SupplierSerializer
+    MovementSerializer, StockSerializer, DocumentSerializer, CategorySerializer
 )
 from user_control.permissions import IsAdminUserCustom
 from rest_framework.views import APIView
@@ -158,7 +158,7 @@ class MovementView(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = Movement.objects.select_related(
-            'product', 'branch', 'branch_from', 'supplier', 'user', 'document'
+            'product', 'branch', 'branch_from', 'user', 'document'
         )
         if user.role == 'admin':
             qs = qs.filter(branch__business=user.business)
@@ -365,15 +365,24 @@ class StockView(ReadOnlyModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-class SupplierView(viewsets.ModelViewSet):
-    serializer_class = SupplierSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return Supplier.objects.filter(business=self.request.user.business)
-
-    def perform_create(self, serializer):
-        serializer.save(business=self.request.user.business)
+    @action(detail=False, methods=['get'], url_path='low-stock/export')
+    def low_stock_export(self, request):
+        queryset = self.get_queryset().filter(quantity__lt=F('minimum_stock'))
+        output = io.StringIO()
+        output.write('\ufeff')
+        writer = csv.writer(output)
+        writer.writerow(['Producto', 'Sucursal', 'Cantidad', 'Stock minimo'])
+        for stock in queryset.select_related('product', 'branch'):
+            writer.writerow([
+                getattr(stock.product, 'name', ''),
+                getattr(stock.branch, 'name', ''),
+                stock.quantity,
+                stock.minimum_stock,
+            ])
+        filename = f"low_stock_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        response = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
 
 class DashboardDataView(APIView):
     permission_classes = [IsAuthenticated]

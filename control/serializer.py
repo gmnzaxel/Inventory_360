@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Business, Branch, Product, Movement, Stock, Document, Category, Supplier
+from .models import Business, Branch, Product, Movement, Stock, Document, Category
 from django.db.models import Sum, Min
 from Inventory360.api_errors import ConflictError, ApiError, ForbiddenError
 
@@ -170,14 +170,6 @@ class DocumentSerializer(serializers.ModelSerializer):
         validated_data['business'] = self.context['request'].user.business
         return super().create(validated_data)
 
-class SupplierSerializer(serializers.ModelSerializer):
-    business = BusinessSerializer(read_only=True)
-
-    class Meta:
-        model = Supplier
-        fields = ['id', 'name', 'contact_person', 'phone', 'email', 'business']
-        read_only_fields = ['business']
-
 class MovementSerializer(serializers.ModelSerializer):
     product = SimpleProductSerializer(read_only=True)
     product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), source='product', write_only=True)
@@ -188,8 +180,6 @@ class MovementSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.name')
     document = DocumentSerializer(read_only=True)
     document_id = serializers.PrimaryKeyRelatedField(queryset=Document.objects.all(), source='document', write_only=True, required=False, allow_null=True)
-    supplier = SupplierSerializer(read_only=True)
-    supplier_id = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(), source='supplier', write_only=True, required=False, allow_null=True)
     quantity = serializers.IntegerField()
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     
@@ -199,7 +189,7 @@ class MovementSerializer(serializers.ModelSerializer):
             'id', 'movement_type', 'quantity', 'date', 'product', 
             'product_id', 'branch', 'branch_id', 'branch_from', 
             'branch_from_id', 'user', 'document', 'document_id', 
-            'unit_price', 'supplier', 'supplier_id', 'notes'
+            'unit_price', 'notes'
         ]
         
     def __init__(self, *args, **kwargs):
@@ -211,7 +201,6 @@ class MovementSerializer(serializers.ModelSerializer):
             self.fields['branch_id'].queryset = Branch.objects.filter(business=user.business)
             self.fields['branch_from_id'].queryset = Branch.objects.filter(business=user.business)
             self.fields['document_id'].queryset = Document.objects.filter(business=user.business)
-            self.fields['supplier_id'].queryset = Supplier.objects.filter(business=user.business)
 
     def validate(self, data):
         product = data['product']
